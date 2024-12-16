@@ -6,7 +6,11 @@
 #include <QPushButton>
 #include <QTableWidget>
 #include <QVBoxLayout>
-
+#include <QMenuBar>
+#include <QStackedWidget>
+#include <QTextEdit>
+#include <QComboBox>
+#include <QCheckBox>
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
@@ -21,13 +25,25 @@ public:
 
 private slots:
     void onFetchPostsClicked();
+    void onCellClicked(int row, int column);
+    void showFetchPostsPage();
+    void showMessagesPage();
+    void onSendMessageClicked();
 
 private:
     Ui::MainWindow *ui;
-
+    QComboBox *timeFilterComboBox;
+    QCheckBox *sortByScoreCheckBox;
+    QCheckBox *sortByCommentsCheckBox;
+    QComboBox *sortCriteriaComboBox;
     QLineEdit *subredditLineEdit;
     QPushButton *fetchButton;
     QTableWidget *resultsTable;
+    QStackedWidget *stackedWidget;
+    QWidget *fetchPostsPage;
+    QWidget *messagesPage;
+    QTextEdit *messageInput;
+    QPushButton *sendMessageButton;
 };
 
 #endif // MAINWINDOW_H
