@@ -11,8 +11,8 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QUrl>
-#include <QStringList>
+#include <QDebug>
 
 QStringList fetchHotPosts(const QString &subreddit);
 
-#endif // REDDIT_API_H
+#endif
