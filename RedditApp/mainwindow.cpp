@@ -1,11 +1,13 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "reddit_api.h"
-
 #include <QVBoxLayout>
 #include <QMessageBox>
-#include <QDesktopServices>
-#include <QUrl>
+#include <QInputDialog>
+#include <QMenuBar>
+#include <QListWidgetItem>
+#include <QProcess>
+#include <iostream>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -13,162 +15,176 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    // Configurare meniu
-    QMenu *menu = menuBar()->addMenu("Menu");
+    // Create menu
+    QMenuBar *menuBar = new QMenuBar(this);
+    QMenu *menu = menuBar->addMenu("Menu");
+
     QAction *fetchPostsAction = new QAction("Fetch Posts", this);
-    QAction *messagesAction = new QAction("Messages", this);
-    menu->addAction(fetchPostsAction);
-    menu->addAction(messagesAction);
+    QAction *fetchMessagesAction = new QAction("Fetch Messages", this);
 
     connect(fetchPostsAction, &QAction::triggered, this, &MainWindow::showFetchPostsPage);
-    connect(messagesAction, &QAction::triggered, this, &MainWindow::showMessagesPage);
+    connect(fetchMessagesAction, &QAction::triggered, this, &MainWindow::showMessagesPage);
 
-    // Configurare pagini
+    menu->addAction(fetchPostsAction);
+    menu->addAction(fetchMessagesAction);
+
+    setMenuBar(menuBar);
+
+    // Configure stacked widget
     stackedWidget = new QStackedWidget(this);
     setCentralWidget(stackedWidget);
 
-    // Pagina Fetch Posts
-    fetchPostsPage = new QWidget(this);
-    subredditLineEdit = new QLineEdit(fetchPostsPage);
-    fetchButton = new QPushButton("Fetch Posts", fetchPostsPage);
-    resultsTable = new QTableWidget(fetchPostsPage);
+    // Configure pages
+    setupFetchPostsPage();
+    setupMessagesPage();
+}
+void MainWindow::onSortCriteriaChanged(const QString &criteria) {
+    // Implement the functionality for when the sort criteria changes
+    // For example, you might want to refetch posts based on the new criteria
+    fetchPosts();
+}
 
-    sortCriteriaComboBox = new QComboBox(this);
-    sortCriteriaComboBox->addItem("Newest");
-    sortCriteriaComboBox->addItem("Oldest");
-    sortCriteriaComboBox->addItem("Most Popular");
-    sortCriteriaComboBox->addItem("Most Commented");
-    sortCriteriaComboBox->addItem("Highest Score");
+void MainWindow::onSortCriteriaChanged(int index) {
+    // This can be an overload if you need to handle index-based changes
+    // Implement the functionality as needed
+    fetchPosts();
+}
 
-    resultsTable->setColumnCount(5);
-    resultsTable->setHorizontalHeaderLabels({"Title", "Author", "Score", "Comments", "Link"});
-    resultsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    resultsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    resultsTable->horizontalHeader()->setStretchLastSection(true);
+void MainWindow::onTimeFrameChanged(int index) {
+    // Implement the functionality for when the time frame changes
+    // For example, refetch posts based on the new time frame
+    fetchPosts();
+}
 
-    // Inițializare ComboBox pentru filtrarea după timp
-    timeFilterComboBox = new QComboBox(this);
-    timeFilterComboBox->addItems({"All Time", "Last 24 Hours", "Last Week", "Last Month"});
+void MainWindow::onAuthorFilterChanged(const QString &text) {
+    // Implement the functionality for when the author filter text changes
+    // For example, refilter the displayed posts based on the author
+    fetchPosts();
+}
 
-    // Inițializare CheckBox-uri pentru sortare
-    sortByScoreCheckBox = new QCheckBox("Sort by Score", this);
-    sortByCommentsCheckBox = new QCheckBox("Sort by Comments", this);
+void MainWindow::setupFetchPostsPage()
+{
+    postsPage = new QWidget(this);
+    QVBoxLayout *layout = new QVBoxLayout(postsPage);
 
+    subredditInput = new QLineEdit(this);
+    subredditInput->setPlaceholderText("Enter subreddit name");
+    fetchPostsButton = new QPushButton("Fetch Posts", this);
+    postsTable = new QTableWidget(this);
+    postsTable->setColumnCount(5);
+    postsTable->setHorizontalHeaderLabels({"Title", "Author", "Score", "Comments", "Link"});
 
-    QVBoxLayout *fetchLayout = new QVBoxLayout(fetchPostsPage);
-    fetchLayout->addWidget(subredditLineEdit);
-    fetchLayout->addWidget(fetchButton);
-    fetchLayout->addWidget(resultsTable);
-    fetchLayout->addWidget(sortCriteriaComboBox);
-    fetchLayout->addWidget(timeFilterComboBox);
-    fetchLayout->addWidget(sortByScoreCheckBox);
-    fetchLayout->addWidget(sortByCommentsCheckBox);
+    layout->addWidget(subredditInput);
+    layout->addWidget(fetchPostsButton);
 
+    // ComboBox for sorting criteria
+    sortComboBox = new QComboBox(this);
+    sortComboBox->addItem("Hot", "hot");
+    sortComboBox->addItem("New", "new");
+    sortComboBox->addItem("Top", "top");
+    sortComboBox->addItem("Controversial", "controversial");
+    layout->addWidget(sortComboBox);
+    connect(sortComboBox, &QComboBox::currentIndexChanged, this, &MainWindow::fetchPosts);
 
-    stackedWidget->addWidget(fetchPostsPage);
+    // ComboBox for time frame
+    timeFrameComboBox = new QComboBox(this);
+    timeFrameComboBox->addItem("All Time", "all");
+    timeFrameComboBox->addItem("Past Hour", "hour");
+    timeFrameComboBox->addItem("Past 24 Hours", "day");
+    timeFrameComboBox->addItem("Past Week", "week");
+    timeFrameComboBox->addItem("Past Month", "month");
+    timeFrameComboBox->addItem("Past Year", "year");
+    layout->addWidget(timeFrameComboBox);
+    connect(timeFrameComboBox, &QComboBox::currentIndexChanged, this, &MainWindow::fetchPosts);
 
-    connect(fetchButton, &QPushButton::clicked, this, &MainWindow::onFetchPostsClicked);
-    connect(resultsTable, &QTableWidget::cellClicked, this, &MainWindow::onCellClicked);
+    // LineEdit for author filter
+    authorFilterInput = new QLineEdit(this);
+    authorFilterInput->setPlaceholderText("Filter by author");
+    layout->addWidget(authorFilterInput);
+    connect(authorFilterInput, &QLineEdit::textChanged, this, &MainWindow::fetchPosts);
 
-    // Pagina Messages
+    layout->addWidget(postsTable);
+    connect(fetchPostsButton, &QPushButton::clicked, this, &MainWindow::fetchPosts);
+
+    stackedWidget->addWidget(postsPage);
+}
+
+void MainWindow::setupMessagesPage()
+{
     messagesPage = new QWidget(this);
-    QVBoxLayout *messagesLayout = new QVBoxLayout(messagesPage);
+    QVBoxLayout *layout = new QVBoxLayout(messagesPage);
 
-    messageInput = new QTextEdit(messagesPage);
-    sendMessageButton = new QPushButton("Send Message", messagesPage);
+    messagesList = new QListWidget(this);
+    messageInput = new QTextEdit(this);
+    sendMessageButton = new QPushButton("Send Message", this);
 
-    messagesLayout->addWidget(messageInput);
-    messagesLayout->addWidget(sendMessageButton);
+    layout->addWidget(messagesList);
+    layout->addWidget(messageInput);
+    layout->addWidget(sendMessageButton);
+
+    connect(sendMessageButton, &QPushButton::clicked, this, &MainWindow::fetchMessages);
 
     stackedWidget->addWidget(messagesPage);
-
-    connect(sendMessageButton, &QPushButton::clicked, this, &MainWindow::onSendMessageClicked);
 }
 
-MainWindow::~MainWindow()
+void MainWindow::showFetchPostsPage()
 {
-    delete ui;
+    stackedWidget->setCurrentIndex(0); // First page: Fetch Posts
 }
 
-void MainWindow::onFetchPostsClicked()
+void MainWindow::showMessagesPage()
 {
-    QString subreddit = subredditLineEdit->text();
+    stackedWidget->setCurrentIndex(1); // Second page: Messages
+}
+
+void MainWindow::fetchPosts()
+{
+    QString subreddit = subredditInput->text();
     if (subreddit.isEmpty()) {
         QMessageBox::warning(this, "Input Error", "Please enter a subreddit name.");
         return;
     }
 
-    // Obținerea filtrului de timp selectat
-    QString timeFilter;
-    QString selectedTime = timeFilterComboBox->currentText();
-    if (selectedTime == "Last 24 Hours") {
-        timeFilter = "day";
-    } else if (selectedTime == "Last Week") {
-        timeFilter = "week";
-    } else if (selectedTime == "Last Month") {
-        timeFilter = "month";
-    } else {
-        timeFilter = "all";
-    }
+    QString sortBy = sortComboBox->currentData().toString();
+    QString timeFrame = timeFrameComboBox->currentData().toString();
+    QString authorFilter = authorFilterInput->text();
+    int limit = 10; // Number of posts to fetch
 
-    // Obținerea selecțiilor de sortare
-    bool sortByScore = sortByScoreCheckBox->isChecked();
-    bool sortByComments = sortByCommentsCheckBox->isChecked();
+    QStringList posts = fetchHotPosts(subreddit, sortBy, limit, timeFrame);
+    postsTable->setRowCount(0);
 
-    auto posts = fetchHotPosts(subreddit, timeFilter, sortByScore, sortByComments);
-    if (posts.isEmpty()) {
-        QMessageBox::information(this, "No Posts", "Could not fetch posts from the subreddit.");
-        return;
-    }
-
-    resultsTable->setRowCount(0);  // Resetează tabelul
-    for (const auto &post : posts) {
-        int row = resultsTable->rowCount();
-        resultsTable->insertRow(row);
-
+    for (const QString &post : posts) {
         QStringList postDetails = post.split("||");
-        for (int col = 0; col < postDetails.size() && col < 5; ++col) {
-            auto *item = new QTableWidgetItem(postDetails[col]);
-            resultsTable->setItem(row, col, item);
+        if (!authorFilter.isEmpty() && !postDetails[1].contains(authorFilter, Qt::CaseInsensitive)) {
+            continue; // Skip posts that don't match the author filter
+        }
+        int row = postsTable->rowCount();
+        postsTable->insertRow(row);
+
+        for (int col = 0; col < postDetails.size(); ++col) {
+            postsTable->setItem(row, col, new QTableWidgetItem(postDetails[col]));
         }
     }
 }
 
-
-
-void MainWindow::onCellClicked(int row, int column)
+void MainWindow::fetchMessages()
 {
-    if (column == 4) { // Coloana "Link"
-        QString url = resultsTable->item(row, column)->text();
-        QDesktopServices::openUrl(QUrl(url));
-    }
-}
-
-
-void MainWindow::showFetchPostsPage()
-{
-    stackedWidget->setCurrentWidget(fetchPostsPage);
-}
-
-void MainWindow::showMessagesPage()
-{
-    stackedWidget->setCurrentWidget(messagesPage);
-}
-
-void MainWindow::onSendMessageClicked()
-{
-    QString message = messageInput->toPlainText();
-    if (message.isEmpty()) {
-        QMessageBox::warning(this, "Input Error", "Please enter a message to send.");
+    QString token = QString::fromStdString(getBearerToken());
+    if (token.isEmpty()) {
+        QMessageBox::critical(this, "Error", "Failed to obtain Bearer Token.");
         return;
     }
 
-    // Aici poți adăuga codul pentru a trimite mesajul către un server sau altă destinație
-    // De exemplu, poți folosi QTcpSocket pentru a trimite mesajul către un server
+    QStringList messages = fetchPrivateMessages(token);
+    messagesList->clear();
 
-    // Pentru demonstrație, vom afișa mesajul într-o fereastră de dialog
-    QMessageBox::information(this, "Message Sent", "Your message has been sent:\n" + message);
+    for (const QString &message : messages) {
+        QListWidgetItem *item = new QListWidgetItem(message, messagesList);
+        messagesList->addItem(item);
+    }
+}
 
-    // Golește câmpul de introducere a mesajului după trimitere
-    messageInput->clear();
+MainWindow::~MainWindow()
+{
+    delete ui;
 }

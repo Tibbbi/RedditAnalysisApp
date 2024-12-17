@@ -2,15 +2,14 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include <QLineEdit>
 #include <QPushButton>
 #include <QTableWidget>
 #include <QVBoxLayout>
-#include <QMenuBar>
-#include <QStackedWidget>
+#include <QLineEdit>
 #include <QTextEdit>
+#include <QListWidget>
+#include <QStackedWidget>
 #include <QComboBox>
-#include <QCheckBox>
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
@@ -24,26 +23,34 @@ public:
     ~MainWindow();
 
 private slots:
-    void onFetchPostsClicked();
-    void onCellClicked(int row, int column);
+    void fetchPosts();
+    void fetchMessages();
     void showFetchPostsPage();
     void showMessagesPage();
-    void onSendMessageClicked();
+    void onSortCriteriaChanged(const QString &criteria);
+    void onSortCriteriaChanged(int index);
+    void onTimeFrameChanged(int index);
+    void onAuthorFilterChanged(const QString &text);
+
 
 private:
+    void setupFetchPostsPage();
+    void setupMessagesPage();
+
     Ui::MainWindow *ui;
-    QComboBox *timeFilterComboBox;
-    QCheckBox *sortByScoreCheckBox;
-    QCheckBox *sortByCommentsCheckBox;
-    QComboBox *sortCriteriaComboBox;
-    QLineEdit *subredditLineEdit;
-    QPushButton *fetchButton;
-    QTableWidget *resultsTable;
     QStackedWidget *stackedWidget;
-    QWidget *fetchPostsPage;
+    QWidget *postsPage;
     QWidget *messagesPage;
+    QTableWidget *postsTable;
+    QLineEdit *subredditInput;
+    QPushButton *fetchPostsButton;
     QTextEdit *messageInput;
     QPushButton *sendMessageButton;
+    QListWidget *messagesList;
+    QComboBox *sortComboBox;
+    QComboBox *timeFrameComboBox;
+    QLineEdit *authorFilterInput;
+
 };
 
 #endif // MAINWINDOW_H
